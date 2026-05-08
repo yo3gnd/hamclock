@@ -39,12 +39,30 @@ uint8_t show_lp;                                // display long path, else short
 #define GRAYLINE_COS    (-0.208F)               // cos(90 + grayline angle), we use 12 degs
 #define GRAYLINE_POW    (0.75F)                 // cos power exponent, sqrt is too severe, 1 is too gradual
 static SCoord moremap_s;                        // drawMoreEarth() scanning location 
+static bool moremap_active;                     // whether a map sweep is currently in progress
+static uint32_t moremap_generation;             // incremented whenever a new sweep is explicitly scheduled
+static uint32_t next_redraw_ms;                 // next periodic redraw deadline once a sweep completes
+#define EARTH_REDRAW_INTERVAL_MS 1000U          // redraw slow-changing map overlays at a modest cadence
 
 // cached grid colors
 uint16_t EARTH_GRIDC, EARTH_GRIDC00;            // main and highlighted
 
 // flag to defer drawing over map until opportune time:
 bool mapmenu_pending;
+
+static void updateCircumstances();
+
+/* request a fresh visual sweep of the current map without reloading its source data.
+ * used to clear old overlays and redraw moving symbols on demand.
+ */
+void scheduleMapRedraw (void)
+{
+    moremap_s.x = 0;
+    moremap_s.y = map_b.y;
+    moremap_active = true;
+    next_redraw_ms = 0;
+    moremap_generation++;
+}
 
 // grid spacing, degrees
 #define LL_LAT_GRID     15
@@ -964,18 +982,35 @@ void initEarthMap()
     updateZoneSCoords(ZONE_CQ);
     updateZoneSCoords(ZONE_ITU);
 
-    // init scan line in map_b
-    moremap_s.x = 0;                    // avoid updateCircumstances() first call to drawMoreEarth()
-    moremap_s.y = map_b.y;
-
     // now main loop can resume with drawMoreEarth()
+    scheduleMapRedraw();
 }
 
 /* display another earth map row at mmoremap_s.
  */
 void drawMoreEarth()
 {
+    if (!moremap_active) {
+        // Only consume deferred overlays while the map is stable. If a redraw is
+        // due now, leave them pending so the fresh map does not immediately paint
+        // over them before the end-of-sweep handlers run.
+        if ((int32_t)(millis() - next_redraw_ms) < 0) {
+            if (mapmenu_pending) {
+                drawMapMenu();
+                mapmenu_pending = false;
+            }
+            if (map_popup.pending) {
+                drawMapPopup();
+                map_popup.pending = false;
+            }
+            return;
+        }
 
+        updateCircumstances();
+        scheduleMapRedraw();
+    }
+
+    uint32_t sweep_generation = moremap_generation;
     uint16_t last_x = map_b.x + EARTH_W - 1;
 
     // draw next row
@@ -1013,9 +1048,13 @@ void drawMoreEarth()
         // rotate?
         checkBGMap();
 
-        // prep for next
-        updateCircumstances();
-        moremap_s.y = map_b.y;
+        // a menu action or map refresh may have already restarted the sweep.
+        if (moremap_generation != sweep_generation)
+            return;
+
+        // otherwise stop here and wait until the next periodic or explicit redraw request.
+        moremap_active = false;
+        next_redraw_ms = millis() + EARTH_REDRAW_INTERVAL_MS;
 
     // #define TIME_MAP_DRAW                             // RBF
     #if defined(TIME_MAP_DRAW)
