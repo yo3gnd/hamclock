@@ -125,6 +125,7 @@ static bool fetchLightning (void)
 
     if (!client.connect (backend_host, backend_port)) {
         Serial.printf ("LTG: connect %s:%d failed\n", backend_host, backend_port);
+        n_strikes = 0;   // reset on failure so panel shows clean zero
         return false;
     }
 
@@ -264,42 +265,37 @@ void drawNCDXFLightningStats (void)
         else                             old++;
     }
 
-    // Integer-to-string without snprintf  - avoids -Wformat-truncation entirely.
-    // Writes decimal of n (0..9999) into dst[NCDXF_B_MAXLEN].
-    auto itoa4 = [](char *dst, int n) {
-        if (n > 9999) n = 9999;
-        if (n < 0)    n = 0;
-        char tmp[5]; int pos = 4; tmp[pos] = '\0';
-        do { tmp[--pos] = (char)('0' + n % 10); n /= 10; } while (n > 0);
-        strncpy (dst, tmp + pos, NCDXF_B_MAXLEN - 1);
-        dst[NCDXF_B_MAXLEN - 1] = '\0';
-    };
+    // Clamp counts to 0..9999 so %u always fits in NCDXF_B_MAXLEN (max 4 digits + NUL).
+    // The clamp also satisfies GCC's value-range analysis to avoid -Wformat-truncation.
+    #define LTG_CLAMP(n) ((unsigned)((n) < 0 ? 0 : (n) > 9999 ? 9999 : (n)))
 
     char     titles[NCDXF_B_NFIELDS][NCDXF_B_MAXLEN];
     char     values[NCDXF_B_NFIELDS][NCDXF_B_MAXLEN];
     uint16_t colors[NCDXF_B_NFIELDS];
 
-    // zero-initialize to prevent any garbage from reaching drawNCDXFStats
+    // Defensive: zero-init the stack arrays so any unfilled slot renders
+    // as an empty string / black instead of whatever was on the stack.
     memset (titles, 0, sizeof(titles));
     memset (values, 0, sizeof(values));
     memset (colors, 0, sizeof(colors));
 
-    strncpy (titles[0], ltg_worldwide ? "Wldwide" : "Radius", NCDXF_B_MAXLEN-1);
-    titles[0][NCDXF_B_MAXLEN-1] = '\0';
-    itoa4 (values[0], n_strikes);
+    snprintf (titles[0], NCDXF_B_MAXLEN, "%s", ltg_worldwide ? "Wldwide" : "Radius");
+    snprintf (values[0], NCDXF_B_MAXLEN, "%u", LTG_CLAMP(n_strikes));
     colors[0] = RA8875_WHITE;
 
-    strncpy (titles[1], "< 2 min", NCDXF_B_MAXLEN-1); titles[1][NCDXF_B_MAXLEN-1] = '\0';
-    itoa4 (values[1], fresh);
+    snprintf (titles[1], NCDXF_B_MAXLEN, "%s", "< 2 min");
+    snprintf (values[1], NCDXF_B_MAXLEN, "%u", LTG_CLAMP(fresh));
     colors[1] = RGB565(255, 220, 0);
 
-    strncpy (titles[2], "2-5 min", NCDXF_B_MAXLEN-1); titles[2][NCDXF_B_MAXLEN-1] = '\0';
-    itoa4 (values[2], recent);
+    snprintf (titles[2], NCDXF_B_MAXLEN, "%s", "2-5 min");
+    snprintf (values[2], NCDXF_B_MAXLEN, "%u", LTG_CLAMP(recent));
     colors[2] = RGB565(255, 140, 0);
 
-    strncpy (titles[3], "5-10min", NCDXF_B_MAXLEN-1); titles[3][NCDXF_B_MAXLEN-1] = '\0';
-    itoa4 (values[3], old);
+    snprintf (titles[3], NCDXF_B_MAXLEN, "%s", "5-10min");
+    snprintf (values[3], NCDXF_B_MAXLEN, "%u", LTG_CLAMP(old));
     colors[3] = RGB565(220, 40, 40);
+
+    #undef LTG_CLAMP
 
     drawNCDXFStats (RA8875_BLACK, titles, values, colors);
 }
