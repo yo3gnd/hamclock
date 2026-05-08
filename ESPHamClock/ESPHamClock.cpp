@@ -677,9 +677,6 @@ void loop()
         // update clocks
         updateClocks(false);
 
-        // update sat pass (this is just the pass; the path is recomputed before each map sweep)
-        updateSatPass();
-
         // display more of earth map
         drawMoreEarth();
 
