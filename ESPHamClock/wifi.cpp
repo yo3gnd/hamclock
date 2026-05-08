@@ -87,6 +87,7 @@ static NTPServer ntp_list[] = {                 // init times to 0 insures all g
 // web site retry interval and max, secs
 #define WIFI_RETRY      (15)
 #define WIFI_MAXRETRY   (5*60)
+#define WIFI_MAINT_MS   100U                    // outer gate for pane/RSS/lightning maintenance
 
 /* "reverting" refers to restoring PANE_1 after temporarily forced to show DE or DX weather.
  */
@@ -2086,6 +2087,12 @@ bool checkBCTouch (const SCoord &s, const SBox &b)
  */
 void updateWiFi(void)
 {
+    static uint32_t maint_ms;
+    if (!timesUp(&maint_ms, WIFI_MAINT_MS)) {
+        // Keep server commands responsive while deferring the slower pane maintenance work.
+        checkWebServer(false);
+        return;
+    }
 
     // time now
     time_t t0 = myNow();
