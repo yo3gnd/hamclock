@@ -14,6 +14,10 @@ This repository was started with the source code for Clear Sky Institute's HamCl
 
 An archive of historical HamClock Client releases up to 4.22 is available at <https://github.com/openhamclock/hamclock-client-archive>.
 
+This fork also carries a few changes by YO3GND which reduce CPU load in the desktop/web build without slowing background polling or delaying map-visible updates. The practical result is that you can leave it running in Docker without the machine sounding as though it is preparing for take-off, and use something else to warm the room.
+
+To check it out, run `docker run -d --name hamclock -p 8080:8080 -p 8081:8081 -p 8082:8082 yo3gnd/hamclock:latest`.
+
 ## Contributing
 
 Bug reports and pull requests are welcome on GitHub at

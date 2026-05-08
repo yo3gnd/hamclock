@@ -1015,7 +1015,7 @@ bool updateDXCluster (const SBox &box, bool fresh)
             dxc_spots_changed = false;
             dxc_ss.drawNewSpotsSymbol (false, false);           // insure off
             scrolledaway_tm = 0;
-            if (map_spots_changed && findPaneForChoice(PLOT_CH_DXCLUSTER) != PANE_NONE)
+            if (findPaneForChoice(PLOT_CH_DXCLUSTER) != PANE_NONE)
                 scheduleMapRedraw();
         }
         ROTHOLD_CLR(PLOT_CH_DXCLUSTER);                         // resume rotation
