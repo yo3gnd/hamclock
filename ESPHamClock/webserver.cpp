@@ -2512,8 +2512,7 @@ void antennas_supported_values (
 		std::string    inval;
 		std::string    outval;
         // get lines 
-        int n_lines = 0;
-        while (n_lines++ < 1000) {
+        while (1) {
             if (!getTCPLine (compat_client, line, sizeof(line), NULL))
                 goto out;
             Serial.printf ("Fetched %s\n", line);
