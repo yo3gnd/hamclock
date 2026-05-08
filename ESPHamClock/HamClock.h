@@ -1462,6 +1462,7 @@ extern void drawMapCoord (uint16_t x, uint16_t y);
 extern void drawSun (void);
 extern void drawMoon (void);
 extern void drawDXInfo (void);
+extern uint16_t lazy_redraw_s;
 extern void scheduleMapRedraw (void);
 extern void ll2s (const LatLong &ll, SCoord &s, uint8_t edge);
 extern void ll2s (float lat, float lng, SCoord &s, uint8_t edge);

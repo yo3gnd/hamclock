@@ -17,6 +17,7 @@
 // max cpu usage, throttle with -t
 #define DEF_CPU_USAGE 0.8F
 static float max_cpu_usage = DEF_CPU_USAGE;
+uint16_t lazy_redraw_s = 30;    // idle map redraw interval, seconds; 0 keeps the original eager sweep
 // even at 100% throttle, don't busy-spin the host when loop() has nothing to do
 #define DEF_MIN_IDLE_LOOP_US 1000
 
@@ -396,6 +397,8 @@ static void usage (const char *errfmt, ...)
             fprintf (stderr, " -i i : init DE using geolocation with IP i; requires -k\n");
             fprintf (stderr, " -k   : start in normal mode, ie, don't offer Setup or wait for Skips\n");
             fprintf (stderr, " -l l : set Mercator or Robinson center longitude to l degrees, +E; requires -k\n");
+            fprintf (stderr, " -L s : set idle map redraw interval to s seconds; 0 keeps continuous redraw; default %u\n",
+                                    lazy_redraw_s);
             fprintf (stderr, " -m   : enable demo mode\n");
             fprintf (stderr, " -n t : set live web idle timeout to t minutes; default forever\n");
             fprintf (stderr, " -o   : write diagnostic log to stdout instead of in %s\n",
@@ -568,6 +571,16 @@ static void crackArgs (int ac, char *av[])
                     setCenterLng(atoi(*++av));
                     cl_set = true;
                     ac--;
+                    break;
+                case 'L': {
+                        if (ac < 2)
+                            usage ("missing seconds for -L");
+                        int redraw_s = atoi(*++av);
+                        if (redraw_s < 0 || redraw_s > 24*3600)
+                            usage ("-L seconds must be [0,86400]");
+                        lazy_redraw_s = redraw_s;
+                        ac--;
+                    }
                     break;
                 case 'm':
                     setDemoMode(true);
