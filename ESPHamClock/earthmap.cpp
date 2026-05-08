@@ -42,7 +42,7 @@ static SCoord moremap_s;                        // drawMoreEarth() scanning loca
 static bool moremap_active;                     // whether a map sweep is currently in progress
 static uint32_t moremap_generation;             // incremented whenever a new sweep is explicitly scheduled
 static uint32_t next_redraw_ms;                 // next periodic redraw deadline once a sweep completes
-#define EARTH_REDRAW_INTERVAL_MS 1000U          // redraw slow-changing map overlays at a modest cadence
+#define EARTH_REDRAW_INTERVAL_MS 30000U         // redraw slow-changing map overlays at a conservative cadence
 
 // cached grid colors
 uint16_t EARTH_GRIDC, EARTH_GRIDC00;            // main and highlighted

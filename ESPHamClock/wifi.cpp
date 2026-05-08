@@ -2494,6 +2494,7 @@ void scheduleNewCoreMap (CoreMaps cm)
 void scheduleFreshMap (void)
 {
     next_map = 0;
+    scheduleMapRedraw();
 }
 
 /* return current NTP response time list.
