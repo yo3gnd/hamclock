@@ -4,4 +4,9 @@
 **/.git*
 **/eeprom
 **/hc.settings
+**/*.o
+**/*.a
+ESPHamClock/hamclock-web-*
+dist/
+git.version
 tmp/

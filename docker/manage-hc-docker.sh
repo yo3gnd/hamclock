@@ -1,9 +1,9 @@
 #!/bin/bash
 
 HC_MANAGER_VERSION=latest
-GITHUB_REPO="openhamclock/hamclock"
+GITHUB_REPO="yo3gnd/hamclock"
 
-IMAGE_BASE=komacke/hamclock
+IMAGE_BASE=yo3gnd/hamclock
 
 # Get our directory locations in order
 HERE="$(cd "$(dirname "$0")" && pwd)"

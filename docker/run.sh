@@ -1,5 +1,7 @@
 #!/bin/sh
 
+EEPROM_FILE="/opt/hamclock/.hamclock/eeprom"
+
 # default size which only applies if all sizes are built
 if [ -z "$HC_SIZE" ]; then
     HC_SIZE=2400x1440
@@ -9,23 +11,40 @@ if [ -z "$BACKEND_HOST" -a -e /opt/hamclock/backend_host ]; then
     BACKEND_HOST="$(grep -v '^#' /opt/hamclock/backend_host)"
 fi
 if [ -n "$BACKEND_HOST" ]; then
-    BACKEND_ARG="-b $BACKEND_HOST"
+    BACKEND_ARG_SET=1
 fi
 
-# these values only matter if there is not an /opt/.hamclock/eeprom file.
-perl hceeprom.pl NV_CALLSIGN $CALLSIGN && \
-perl hceeprom.pl NV_DE_GRID $LOCATOR && \
-perl hceeprom.pl NV_DE_LAT $LAT && \
-perl hceeprom.pl NV_DE_LNG $LONG && \
-perl hceeprom.pl NV_BCMODE $VOACAP_MODE && \
-perl hceeprom.pl NV_BCPOWER $VOACAP_POWER && \
-perl hceeprom.pl NV_CALL_BG_COLOR $CALLSIGN_BACKGROUND_COLOR && \
-perl hceeprom.pl NV_CALL_BG_RAINBOW $CALLSIGN_BACKGROUND_RAINBOW && \
-perl hceeprom.pl NV_CALL_FG_COLOR $CALLSIGN_COLOR && \
-perl hceeprom.pl NV_FLRIGHOST $FLRIG_HOST && \
-perl hceeprom.pl NV_FLRIGPORT $FLRIG_PORT && \
-perl hceeprom.pl NV_FLRIGUSE $USE_FLRIG && \
-perl hceeprom.pl NV_METRIC_ON $USE_METRIC && \
+set_preseed_nv() {
+    if [ -n "$2" ]; then
+        perl hceeprom.pl "$1" "$2"
+        return $?
+    fi
+    return 0
+}
+
+apply_preseed() {
+    # Keep direct pulls fresh by default. Preseed only when a settings file exists
+    # already, which is how the helper script stages first-run configuration.
+    if [ ! -e "$EEPROM_FILE" ]; then
+        return 0
+    fi
+
+    set_preseed_nv NV_CALLSIGN "$CALLSIGN" &&
+    set_preseed_nv NV_DE_GRID "$LOCATOR" &&
+    set_preseed_nv NV_DE_LAT "$LAT" &&
+    set_preseed_nv NV_DE_LNG "$LONG" &&
+    set_preseed_nv NV_BCMODE "$VOACAP_MODE" &&
+    set_preseed_nv NV_BCPOWER "$VOACAP_POWER" &&
+    set_preseed_nv NV_CALL_BG_COLOR "$CALLSIGN_BACKGROUND_COLOR" &&
+    set_preseed_nv NV_CALL_BG_RAINBOW "$CALLSIGN_BACKGROUND_RAINBOW" &&
+    set_preseed_nv NV_CALL_FG_COLOR "$CALLSIGN_COLOR" &&
+    set_preseed_nv NV_FLRIGHOST "$FLRIG_HOST" &&
+    set_preseed_nv NV_FLRIGPORT "$FLRIG_PORT" &&
+    set_preseed_nv NV_FLRIGUSE "$USE_FLRIG" &&
+    set_preseed_nv NV_METRIC_ON "$USE_METRIC"
+}
+
+apply_preseed || exit $?
 
 # this extra work causes the container to stop quickly. We need to 
 # kill our own jobs or bash will zombie and then docker takes 10 seconds
@@ -49,5 +68,10 @@ else
     exit 1
 fi
 
-$HC_EXEC -t 10 $BACKEND_ARG &
+set -- "$HC_EXEC"
+if [ -n "$BACKEND_ARG_SET" ]; then
+    set -- "$@" -b "$BACKEND_HOST"
+fi
+
+"$@" &
 wait $!

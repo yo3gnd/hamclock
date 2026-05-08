@@ -2,8 +2,8 @@
 ## REFER TO THE DOCUMENTATION FOR CONFIGURATION OF YOUR HAMCLOCK!
 FROM alpine:3.23
 ARG HC_SIZE
-ARG HC_UID
-ARG HC_GID
+ARG HC_UID=1199
+ARG HC_GID=1199
 
 USER root
 WORKDIR /opt/hamclock
@@ -18,7 +18,7 @@ COPY hamclock-contrib/ hamclock-contrib/
 COPY docker/run.sh ./
 COPY docker/backend_host ./
 RUN addgroup -g $HC_GID hamclock && \
-    adduser  -u $HC_UID -G hamclock -h /opt/hamclock -HD -s /sbin/nologin hamclock && \
+    adduser -S -D -H -u $HC_UID -G hamclock -h /opt/hamclock -s /sbin/nologin hamclock && \
     \
     cp hamclock-contrib/hceeprom.pl ESPHamClock/ && \
     chmod +x ESPHamClock/hceeprom.pl && \

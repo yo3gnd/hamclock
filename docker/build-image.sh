@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Variables to set
-IMAGE_BASE=komacke/hamclock
+IMAGE_BASE=yo3gnd/hamclock
 HC_UID=1199
 HC_GID=1199
 ON_TAG=false
@@ -30,11 +30,10 @@ usage() {
     cat<<EOF
 $THIS: 
 
-    Builds the latest docker image based on the current git branch. It will figure out
-    if on a git tag and will use that for the docker image tag. Otherwise falls back
-    to 'latest'.
+    Builds the docker image for this fork. If on an exact git tag, that tag is used
+    as the image tag. Otherwise it falls back to 'latest'.
 
-    -m: multi-platform image buld for: linux/amd64 linux/arm64 linux/arm/v7
+    -m: multi-platform image build for: linux/amd64 linux/arm64
         - argument is ignored when run with -c
         - remember to setup a buildx container: 
             docker buildx create --name ohb --driver docker-container --use
