@@ -42,7 +42,6 @@ static SCoord moremap_s;                        // drawMoreEarth() scanning loca
 static bool moremap_active;                     // whether a map sweep is currently in progress
 static uint32_t moremap_generation;             // incremented whenever a new sweep is explicitly scheduled
 static uint32_t next_redraw_ms;                 // next periodic redraw deadline once a sweep completes
-#define EARTH_REDRAW_INTERVAL_MS 30000U         // redraw slow-changing map overlays at a conservative cadence
 
 // cached grid colors
 uint16_t EARTH_GRIDC, EARTH_GRIDC00;            // main and highlighted
@@ -52,16 +51,21 @@ bool mapmenu_pending;
 
 static void updateCircumstances();
 
-/* request a fresh visual sweep of the current map without reloading its source data.
- * used to clear old overlays and redraw moving symbols on demand.
- */
-void scheduleMapRedraw (void)
+static void startMapRedraw (void)
 {
     moremap_s.x = 0;
     moremap_s.y = map_b.y;
     moremap_active = true;
     next_redraw_ms = 0;
     moremap_generation++;
+}
+
+/* request a fresh visual sweep of the current map without reloading its source data.
+ * used to clear old overlays and redraw moving symbols on demand.
+ */
+void scheduleMapRedraw (void)
+{
+    startMapRedraw ();
 }
 
 // grid spacing, degrees
@@ -1007,7 +1011,7 @@ void drawMoreEarth()
         }
 
         updateCircumstances();
-        scheduleMapRedraw();
+        startMapRedraw ();
     }
 
     uint32_t sweep_generation = moremap_generation;
@@ -1052,9 +1056,14 @@ void drawMoreEarth()
         if (moremap_generation != sweep_generation)
             return;
 
-        // otherwise stop here and wait until the next periodic or explicit redraw request.
-        moremap_active = false;
-        next_redraw_ms = millis() + EARTH_REDRAW_INTERVAL_MS;
+        // either keep sweeping continuously or pause until the next lazy redraw deadline.
+        if (lazy_redraw_s == 0) {
+            updateCircumstances();
+            moremap_s.y = map_b.y;
+        } else {
+            moremap_active = false;
+            next_redraw_ms = millis() + 1000UL*lazy_redraw_s;
+        }
 
     // #define TIME_MAP_DRAW                             // RBF
     #if defined(TIME_MAP_DRAW)

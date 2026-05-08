@@ -17,6 +17,7 @@ The following command line options are defined:
     -i i : init DE using geolocation with IP i; requires -k
     -k   : start in normal mode, ie, don't offer Setup or wait for Skips
     -l l : set Mercator or Robinson center longitude to l degrees, +E; requires -k
+    -L s : set idle map redraw interval to s seconds; 0 keeps continuous redraw; default 30
     -m   : enable demo mode
     -n t : set live web idle timeout to t minutes; default forever
     -o   : write diagnostic log to stdout instead of in ~/.hamclock/
