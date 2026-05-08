@@ -273,6 +273,12 @@ void drawNCDXFLightningStats (void)
     char     values[NCDXF_B_NFIELDS][NCDXF_B_MAXLEN];
     uint16_t colors[NCDXF_B_NFIELDS];
 
+    // Defensive: zero-init the stack arrays so any unfilled slot renders
+    // as an empty string / black instead of whatever was on the stack.
+    memset (titles, 0, sizeof(titles));
+    memset (values, 0, sizeof(values));
+    memset (colors, 0, sizeof(colors));
+
     snprintf (titles[0], NCDXF_B_MAXLEN, "%s", ltg_worldwide ? "Wldwide" : "Radius");
     snprintf (values[0], NCDXF_B_MAXLEN, "%u", LTG_CLAMP(n_strikes));
     colors[0] = RA8875_WHITE;
