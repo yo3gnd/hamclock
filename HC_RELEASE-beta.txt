@@ -3,3 +3,5 @@ Changes with latest release:
 - show lightning strikes on maps
 - directional antennas in voacap
 - highlight "now" in VOACAP DE-DX
+- compile opts to set dx cluster
+- exponential backoff for voacap maps
