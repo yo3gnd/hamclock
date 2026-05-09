@@ -333,6 +333,18 @@ long max_age)
             // download new twin voacap maps
             Serial.printf ("%s: downloading fresh D and N files\n", style);
             updateClocks(false);
+
+            // belt-and-braces: honor VOACAP rate limit before any network I/O
+            time_t now = myNow();
+            if (voacapThrottled(now)) {
+                long since = (long)(now - lastVOACAPAttempt());
+                Serial.printf ("VOACAP: %s throttled in installQueryMaps (%ld s since last)\n",
+                               style, since);
+                mapMsg (3000, "Server Busy Please Wait");
+                return false;          // caller will schedule via nextVOACAPRetry()
+            }
+            noteVOACAPAttempt(now);
+
             WiFiClient client;
             if (client.connect(backend_host, backend_port)) {
                 mapMsg (0, "%s", msg);
