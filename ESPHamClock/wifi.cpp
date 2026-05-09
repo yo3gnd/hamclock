@@ -2216,7 +2216,7 @@ void updateWiFi(void)
                     next_update[pp] = nextPaneUpdate (pc, BC_INTERVAL);
                     fresh_redraw[pc] = false;
                 } else
-                    next_update[pp] = nextWiFiRetry (PLOT_CH_BC);
+                    next_update[pp] = bc_matrix.next_update;     // use schedule set by updateBandConditions
             }
             break;
 
