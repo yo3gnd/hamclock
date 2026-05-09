@@ -3201,6 +3201,13 @@ extern bool bypass_pw;
 #define BC_INTERVAL             (3400)                  // polling interval, secs
 #define VOACAP_INTERVAL         (3500)                  // polling interval, secs
 #define OTHER_MAPS_INTERVAL     (1800)                  // polling interval, secs
+
+// VOACAP-specific exponential backoff and click rate-limit
+#define VOACAP_RETRY_BASE       (30)                    // initial backoff after a failure, secs
+#define VOACAP_RETRY_MAX        (30*60)                 // cap on exponential backoff, secs
+#define VOACAP_RETRY_MULT       (2)                     // backoff multiplier per failure
+#define VOACAP_INITIAL_JITTER   (30)                    // jitter for first attempt, secs
+#define VOACAP_MIN_INTERVAL     (30)                    // min secs between any VOACAP fetch attempts
 #define ROTATION_INTERVAL       (getPaneRotationPeriod()) // handy pane auto rotation period in seconds
 
 
@@ -3234,6 +3241,12 @@ extern bool setRSSTitle (const char *title, int &n_titles, int &max_titles);
 extern time_t nextPaneRotation (PlotPane pp);
 extern time_t nextWiFiRetry (PlotChoice pc);
 extern time_t nextWiFiRetry (const char *str);
+extern time_t nextVOACAPRetry (const char *str);
+extern void   resetVOACAPRetry (void);
+extern bool   voacapThrottled (time_t now);
+extern void   noteVOACAPAttempt (time_t now);
+extern time_t lastVOACAPAttempt (void);
+extern bool   isVOACAPMap (CoreMaps cm);
 extern void scheduleFreshMap (void);
 extern PlotPane ignorePaneTouch(void);
 extern NTPServer *findBestNTP(void);
