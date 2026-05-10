@@ -29,6 +29,9 @@
 #define LIGHTNING_RETRY_SECS    60      // retry after failed fetch
 #define LIGHTNING_MAX_STRIKES   5000    // worldwide coverage  - ~3 min of global activity
 
+// Temporary test data. Set to 0 or remove before merging.
+#define LTG_ADD_TEST_STRIKES    1
+
 // Ring distances in km  - frames the 500km search radius
 static const int ltg_ring_km[] = { 100, 200, 300, 400, 500 };
 #define LTG_N_RINGS  ((int)NARRAY(ltg_ring_km))
@@ -74,6 +77,28 @@ static void drawBolt (int16_t cx, int16_t cy, uint16_t color)
     uint16_t my = (uint16_t)(tft.SCALESZ * map_b.y);
     uint16_t mw = (uint16_t)(tft.SCALESZ * map_b.w);
     uint16_t mh = (uint16_t)(tft.SCALESZ * map_b.h);
+
+    // 800x480: smol lightning
+    //   ..x
+    //   .x.
+    //   xxx
+    //   .x.
+    //   x..
+    if (tft.SCALESZ == 1) {
+        if (cx-1 < (int16_t)mx || cx+1 >= (int16_t)(mx+mw) ||
+            cy-2 < (int16_t)my || cy+2 >= (int16_t)(my+mh))
+            return;
+
+        tft.drawPixelRaw (cx+1, cy-2, color);
+        tft.drawPixelRaw (cx,   cy-1, color);
+        tft.drawPixelRaw (cx-1, cy,   color);
+        tft.drawPixelRaw (cx,   cy,   RA8875_WHITE);
+        tft.drawPixelRaw (cx+1, cy,   color);
+        tft.drawPixelRaw (cx,   cy+1, color);
+        tft.drawPixelRaw (cx-1, cy+2, color);
+        return;
+    }
+
     if (cx-4 < (int16_t)mx || cx+4 >= (int16_t)(mx+mw) ||
         cy-6 < (int16_t)my || cy+6 >= (int16_t)(my+mh))
         return;
@@ -109,6 +134,40 @@ static int parseStrikes (const char *buf, int buf_len)
     }
     return count;
 }
+
+#if LTG_ADD_TEST_STRIKES
+static void addTestLightningStrikes (void)
+{
+    static const float centers[][2] = {
+        {  0.0000F,  0.0000F },     // Null Island
+        { 44.4268F, 26.1025F },     // Bucharest
+    };
+    static const float offsets_d[] = { -5.0F, 0.0F, 5.0F };
+    static const int ages_s[] = {
+         30,     // fresh, yellow
+        180,     // recent, orange
+        420,     // older, red
+    };
+
+    const int n_test = (int)NARRAY(centers) * (int)NARRAY(offsets_d) * (int)NARRAY(offsets_d);
+
+    // Guarantee room for the fake strikes even if the live buffer is full.
+    if (n_strikes > LIGHTNING_MAX_STRIKES - n_test)
+        n_strikes = LIGHTNING_MAX_STRIKES - n_test;
+
+    for (int ic = 0; ic < (int)NARRAY(centers); ic++) {
+        for (int ilat = 0; ilat < (int)NARRAY(offsets_d); ilat++) {
+            for (int ilng = 0; ilng < (int)NARRAY(offsets_d); ilng++) {
+                LightningStrike *sp = &strikes[n_strikes++];
+
+                sp->lat = centers[ic][0] + offsets_d[ilat];
+                sp->lng = centers[ic][1] + offsets_d[ilng];
+                sp->age_s = ages_s[(ilat * (int)NARRAY(offsets_d) + ilng) % (int)NARRAY(ages_s)];
+            }
+        }
+    }
+}
+#endif
 
 // ---- fetch ---------------------------------------------------------------
 
@@ -172,6 +231,10 @@ static bool fetchLightning (void)
         n_strikes = parseStrikes (buf, pos);
         free (buf);
 
+#if LTG_ADD_TEST_STRIKES
+        addTestLightningStrikes();
+#endif
+
         Serial.printf ("LTG: %d strikes %s\n", n_strikes,
                        ltg_worldwide ? "worldwide" : "in radius");
 
@@ -184,8 +247,17 @@ static bool fetchLightning (void)
 
 out:
     client.stop();
-    if (!ok)
-        n_strikes = 0;   // always reset on failure so panel shows clean zero
+    if (!ok) {
+        n_strikes = 0;
+#if LTG_ADD_TEST_STRIKES
+        addTestLightningStrikes();
+        Serial.printf ("LTG: using %d fake strikes\n", n_strikes);
+        if (brb_mode == BRB_SHOW_LIGHTNING)
+            drawNCDXFLightningStats();
+        ok = true;
+#endif
+    }
+    scheduleFreshMap();
     return ok;
 }
 
@@ -314,6 +386,7 @@ void resetLightning (void)
 {
     n_strikes  = 0;
     next_fetch = 0;
+    scheduleFreshMap();
 }
 
 /* Restore NV state at startup.
