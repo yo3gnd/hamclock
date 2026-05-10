@@ -98,8 +98,9 @@ static void drawBolt (int16_t cx, int16_t cy, uint16_t color)
         //tft.drawPixelRaw (cx,   cy+1, color);
         //tft.drawPixelRaw (cx-1, cy+2, color);
         tft.drawPixelRaw (cx+1,   cy,   color);
+        tft.drawPixelRaw (cx-1,   cy,   color);
+        tft.drawPixelRaw (cx,   cy-1,   color);
         tft.drawPixelRaw (cx,   cy+1,   color);
-        tft.drawPixelRaw (cx+1,   cy+1,   color);
         return;
     }
 
