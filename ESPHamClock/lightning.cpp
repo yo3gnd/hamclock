@@ -89,13 +89,17 @@ static void drawBolt (int16_t cx, int16_t cy, uint16_t color)
             cy-2 < (int16_t)my || cy+2 >= (int16_t)(my+mh))
             return;
 
-        tft.drawPixelRaw (cx+1, cy-2, color);
-        tft.drawPixelRaw (cx,   cy-1, color);
-        tft.drawPixelRaw (cx-1, cy,   color);
-        tft.drawPixelRaw (cx,   cy,   RA8875_WHITE);
-        tft.drawPixelRaw (cx+1, cy,   color);
-        tft.drawPixelRaw (cx,   cy+1, color);
-        tft.drawPixelRaw (cx-1, cy+2, color);
+        //tft.drawPixelRaw (cx+1, cy-2, color);
+        //tft.drawPixelRaw (cx,   cy-1, color);
+        //tft.drawPixelRaw (cx-1, cy,   color);
+        tft.drawPixelRaw (cx,   cy,   color);
+        //tft.drawPixelRaw (cx,   cy,   RA8875_WHITE);
+        //tft.drawPixelRaw (cx+1, cy,   color);
+        //tft.drawPixelRaw (cx,   cy+1, color);
+        //tft.drawPixelRaw (cx-1, cy+2, color);
+        tft.drawPixelRaw (cx+1,   cy,   color);
+        tft.drawPixelRaw (cx,   cy+1,   color);
+        tft.drawPixelRaw (cx+1,   cy+1,   color);
         return;
     }
 
