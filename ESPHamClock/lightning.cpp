@@ -68,34 +68,23 @@ uint16_t ltg_radius_km;     // extern; search radius in km when not worldwide
 
 static void drawBolt (int16_t cx, int16_t cy, uint16_t color)
 {
-    // Guard: bolt extends 6px vertically and 4px horizontally from centre.
-    // Use raw map bounds to ensure every pixel lands on screen.
     uint16_t mx = (uint16_t)(tft.SCALESZ * map_b.x);
     uint16_t my = (uint16_t)(tft.SCALESZ * map_b.y);
     uint16_t mw = (uint16_t)(tft.SCALESZ * map_b.w);
     uint16_t mh = (uint16_t)(tft.SCALESZ * map_b.h);
 
-    if (tft.SCALESZ == 1) {
-        if (cx-1 < (int16_t)mx || cx+1 >= (int16_t)(mx+mw) ||
-            cy-2 < (int16_t)my || cy+2 >= (int16_t)(my+mh))
-            return;
+    // arm length scales with build size and current zoom level
+    int16_t arm = (int16_t)(tft.SCALESZ * pan_zoom.zoom);
+    if (arm < 1)
+        arm = 1;
 
-        tft.drawPixelRaw (cx,   cy,   color);
-        tft.drawPixelRaw (cx+1, cy,   color);
-        tft.drawPixelRaw (cx-1, cy,   color);
-        tft.drawPixelRaw (cx,   cy-1, color);
-        tft.drawPixelRaw (cx,   cy+1, color);
-        return;
-    }
-
-    if (cx-4 < (int16_t)mx || cx+4 >= (int16_t)(mx+mw) ||
-        cy-6 < (int16_t)my || cy+6 >= (int16_t)(my+mh))
+    if (cx - arm < (int16_t)mx || cx + arm >= (int16_t)(mx + mw) ||
+        cy - arm < (int16_t)my || cy + arm >= (int16_t)(my + mh))
         return;
 
-    tft.drawLineRaw (cx+2, cy-6,  cx-2, cy-1,  2, color);
-    tft.drawLineRaw (cx-4, cy,    cx+4, cy,     2, color);
-    tft.drawLineRaw (cx+2, cy+1,  cx-2, cy+6,  2, color);
-    tft.drawPixelRaw (cx, cy, RA8875_WHITE);
+    // horizontal and vertical arms
+    tft.drawLineRaw (cx - arm, cy,       cx + arm, cy,       1, color);
+    tft.drawLineRaw (cx,       cy - arm, cx,       cy + arm, 1, color);
 }
 
 // ---- response parsing ----------------------------------------------------
