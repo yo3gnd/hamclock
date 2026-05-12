@@ -1710,6 +1710,7 @@ void drawAllSymbols()
     drawFarthestPSKSpots();
     drawLightningOnMap();
     drawSanta ();
+    notifyLightningBlockedMap();
 
     updateClocks(false);
 }

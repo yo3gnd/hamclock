@@ -75,29 +75,16 @@ static void drawBolt (int16_t cx, int16_t cy, uint16_t color)
     uint16_t mw = (uint16_t)(tft.SCALESZ * map_b.w);
     uint16_t mh = (uint16_t)(tft.SCALESZ * map_b.h);
 
-    // 800x480: smol lightning
-    //   ..x
-    //   .x.
-    //   xxx
-    //   .x.
-    //   x..
     if (tft.SCALESZ == 1) {
         if (cx-1 < (int16_t)mx || cx+1 >= (int16_t)(mx+mw) ||
             cy-2 < (int16_t)my || cy+2 >= (int16_t)(my+mh))
             return;
 
-        //tft.drawPixelRaw (cx+1, cy-2, color);
-        //tft.drawPixelRaw (cx,   cy-1, color);
-        //tft.drawPixelRaw (cx-1, cy,   color);
         tft.drawPixelRaw (cx,   cy,   color);
-        //tft.drawPixelRaw (cx,   cy,   RA8875_WHITE);
-        //tft.drawPixelRaw (cx+1, cy,   color);
-        //tft.drawPixelRaw (cx,   cy+1, color);
-        //tft.drawPixelRaw (cx-1, cy+2, color);
-        tft.drawPixelRaw (cx+1,   cy,   color);
-        tft.drawPixelRaw (cx-1,   cy,   color);
-        tft.drawPixelRaw (cx,   cy-1,   color);
-        tft.drawPixelRaw (cx,   cy+1,   color);
+        tft.drawPixelRaw (cx+1, cy,   color);
+        tft.drawPixelRaw (cx-1, cy,   color);
+        tft.drawPixelRaw (cx,   cy-1, color);
+        tft.drawPixelRaw (cx,   cy+1, color);
         return;
     }
 
@@ -345,6 +332,67 @@ void resetLightning (void)
     scheduleFreshMap();
 }
 
+static bool lightningBlockedMap (void)
+{
+    switch (core_map) {
+    case CM_PMTOA:
+    case CM_PMREL:
+    case CM_MUF_V:
+    case CM_MUF_RT:
+    case CM_DRAP:
+    case CM_AURORA:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static void showLightningBlockedMapMsg (void)
+{
+    static const char msg[] = "Lightning not available on this map";
+    FontWeight fw;
+    FontSize fs;
+    uint16_t msg_w;
+    uint16_t box_w;
+    const uint16_t box_h = 30;
+    uint8_t *bs = NULL;
+
+    getFontStyle (&fw, &fs);
+    selectFontStyle (LIGHT_FONT, FAST_FONT);
+    msg_w = getTextWidth (msg);
+    box_w = msg_w + 20;
+    if (box_w > map_b.w - 20)
+        box_w = map_b.w - 20;
+
+    SBox box = {
+        (uint16_t) (map_b.x + (map_b.w - box_w)/2),
+        (uint16_t) (map_b.y + map_b.h/10),
+        box_w,
+        box_h
+    };
+    if (!tft.getBackingStore (bs, box.x, box.y, box.w, box.h)) {
+        selectFontStyle (fw, fs);
+        return;
+    }
+
+    fillSBox (box, RA8875_BLACK);
+    drawSBox (box, RA8875_WHITE);
+    tft.setCursor (box.x + (box.w - msg_w)/2, box.y + box.h/3);
+    tft.setTextColor (RA8875_WHITE);
+    tft.print (msg);
+    tft.drawPR();
+    wdDelay (2000);
+
+    if (!tft.setBackingStore (bs, box.x, box.y, box.w, box.h)) {
+        if (bs)
+            free (bs);
+        selectFontStyle (fw, fs);
+        return;
+    }
+    tft.drawPR();
+    selectFontStyle (fw, fs);
+}
+
 /* Restore NV state at startup.
  * N.B. follows the HamClock pattern of writing the default if no cookie found.
  */
@@ -481,6 +529,9 @@ void drawLightningOnMap (void)
     if (!lightning_on)
         return;
 
+    if (lightningBlockedMap())
+        return;
+
     // Rings and attribution  - Mercator only, always on when overlay enabled
     if (map_proj == MAPP_MERCATOR) {
         drawLightningRings();
@@ -521,4 +572,17 @@ void drawLightningOnMap (void)
 
         drawBolt ((int16_t)s.x, (int16_t)s.y, color);
     }
+}
+
+void notifyLightningBlockedMap (void)
+{
+    static bool was_blocked;
+    static bool was_on;
+    bool blocked = lightning_on && lightningBlockedMap();
+
+    if (blocked && (!was_blocked || !was_on))
+        showLightningBlockedMapMsg();
+
+    was_blocked = blocked;
+    was_on = lightning_on;
 }

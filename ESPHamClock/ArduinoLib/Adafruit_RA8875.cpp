@@ -40,8 +40,6 @@
 
 #include "Adafruit_RA8875.h"
 
-extern uint8_t lightning_on;
-
 
 #ifdef _USE_FB0
 
@@ -1716,12 +1714,12 @@ float dlatr, float dlngr, float dlatd, float dlngd, float fract_day)
                 int ey = (int)((90-lat)*EARTH_BIG_H/180 + EARTH_BIG_H + 0.5F);
                 ex = (ex + EARTH_BIG_W) % EARTH_BIG_W;
                 ey = (ey + EARTH_BIG_H) % EARTH_BIG_H;
-			uint16_t c16; 
-			if (fract_day == 0) {
-			    c16 = EPIXEL(NEARTH_BIG,ey,ex);
-			} else if (fract_day == 1) {
-			    c16 = EPIXEL(DEARTH_BIG,ey,ex);
-			} else {
+		uint16_t c16; 
+		if (fract_day == 0) {
+		    c16 = EPIXEL(NEARTH_BIG,ey,ex);
+		} else if (fract_day == 1) {
+		    c16 = EPIXEL(DEARTH_BIG,ey,ex);
+		} else {
 		    // blend from day to night
 		    uint16_t day_pix = EPIXEL(DEARTH_BIG,ey,ex);
 		    uint16_t night_pix = EPIXEL(NEARTH_BIG,ey,ex);
@@ -1734,38 +1732,13 @@ float dlatr, float dlngr, float dlatd, float dlngd, float fract_day)
 		    float fract_night = 1 - fract_day;
 		    uint8_t twi_r = (fract_day*day_r + fract_night*night_r);
 		    uint8_t twi_g = (fract_day*day_g + fract_night*night_g);
-			    uint8_t twi_b = (fract_day*day_b + fract_night*night_b);
-			    c16 = RGB565 (twi_r, twi_g, twi_b);
-			}
-
-                        if (lightning_on) {
-                            /*
-                             * reduce brightness
-                             *
-                             * uint8_t r = (uint8_t)((2U * RGB565_R(c16)) / 3U);
-                             * uint8_t g = (uint8_t)((2U * RGB565_G(c16)) / 3U);
-                             * uint8_t b = (uint8_t)((2U * RGB565_B(c16)) / 3U);
-                             * c16 = RGB565 (r, g, b);
-                             */
-
-                            // Desaturate by 66% instead: keep 34% of the original chroma.
-                            uint8_t r = RGB565_R(c16);
-                            uint8_t g = RGB565_G(c16);
-                            uint8_t b = RGB565_B(c16);
-                            //uint8_t gray = (uint8_t)((77U*r + 150U*g + 29U*b) / 256U);
-                            uint8_t gray = (218*r + 732*g + 74*b + 512) >> 10;
-                            r = (uint8_t)((66U*r + 34U*gray) / 100U);
-                            g = (uint8_t)((66U*g + 34U*gray) / 100U);
-                            b = (uint8_t)((66U*b + 34U*gray) / 100U);
-                            r = (uint8_t)((5 * r) / 6);
-                            g = (uint8_t)((5 * g) / 6);
-                            b = (uint8_t)((5 * b) / 6);
-                            c16 = RGB565 (r, g, b);
-                        }
-			*frow++ = RGB16TOFBPIX(c16);
-		    }
+		    uint8_t twi_b = (fract_day*day_b + fract_night*night_b);
+		    c16 = RGB565 (twi_r, twi_g, twi_b);
 		}
+		*frow++ = RGB16TOFBPIX(c16);
+	    }
 	}
+}
 
 void Adafruit_RA8875::plotChar (char ch)
 {
