@@ -74,6 +74,33 @@ static void drawBolt (int16_t cx, int16_t cy, uint16_t color)
     uint16_t my = (uint16_t)(tft.SCALESZ * map_b.y);
     uint16_t mw = (uint16_t)(tft.SCALESZ * map_b.w);
     uint16_t mh = (uint16_t)(tft.SCALESZ * map_b.h);
+
+    // 800x480: smol lightning
+    //   ..x
+    //   .x.
+    //   xxx
+    //   .x.
+    //   x..
+    if (tft.SCALESZ == 1) {
+        if (cx-1 < (int16_t)mx || cx+1 >= (int16_t)(mx+mw) ||
+            cy-2 < (int16_t)my || cy+2 >= (int16_t)(my+mh))
+            return;
+
+        //tft.drawPixelRaw (cx+1, cy-2, color);
+        //tft.drawPixelRaw (cx,   cy-1, color);
+        //tft.drawPixelRaw (cx-1, cy,   color);
+        tft.drawPixelRaw (cx,   cy,   color);
+        //tft.drawPixelRaw (cx,   cy,   RA8875_WHITE);
+        //tft.drawPixelRaw (cx+1, cy,   color);
+        //tft.drawPixelRaw (cx,   cy+1, color);
+        //tft.drawPixelRaw (cx-1, cy+2, color);
+        tft.drawPixelRaw (cx+1,   cy,   color);
+        tft.drawPixelRaw (cx-1,   cy,   color);
+        tft.drawPixelRaw (cx,   cy-1,   color);
+        tft.drawPixelRaw (cx,   cy+1,   color);
+        return;
+    }
+
     if (cx-4 < (int16_t)mx || cx+4 >= (int16_t)(mx+mw) ||
         cy-6 < (int16_t)my || cy+6 >= (int16_t)(my+mh))
         return;
@@ -185,7 +212,8 @@ static bool fetchLightning (void)
 out:
     client.stop();
     if (!ok)
-        n_strikes = 0;   // always reset on failure so panel shows clean zero
+        n_strikes = 0;
+    scheduleFreshMap();
     return ok;
 }
 
@@ -314,6 +342,7 @@ void resetLightning (void)
 {
     n_strikes  = 0;
     next_fetch = 0;
+    scheduleFreshMap();
 }
 
 /* Restore NV state at startup.
