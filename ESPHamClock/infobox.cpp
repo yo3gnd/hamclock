@@ -132,7 +132,6 @@ static bool drawIB_Mode (const char *mode, uint16_t tx, int dy, uint16_t &ty)
 
 /* drawMouseLoc() helper for looking up city.
  * if city is wanted, found and over map: change ll, ms and names_w IN PLACE and draw dot and name
- * N.B. we assume the city name background is already erased
  */
 static bool drawIB_City (LatLong &ll, SCoord &ms, const SBox &info_b, uint16_t &names_w, uint16_t names_y)
 {
@@ -157,9 +156,12 @@ static bool drawIB_City (LatLong &ll, SCoord &ms, const SBox &info_b, uint16_t &
                 ll = city_ll;
                 ms = city_ms;
                 names_w = max_cl * 6;           // * font width
+                uint16_t names_x = map_b.x + (map_b.w-names_w)/2;
                 // dot
                 tft.fillCircle (city_ms.x, city_ms.y, CDOT_R, RA8875_RED);
-                // name, assuming background is already erased
+                // name background
+                tft.fillRect (names_x, names_y, names_w, 14, RA8875_BLACK);
+                // name
                 uint16_t c_w = getTextWidth (city);
                 tft.setCursor (map_b.x + (map_b.w-c_w)/2, names_y + 3);
                 tft.print(city);
