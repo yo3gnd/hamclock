@@ -1,0 +1,263 @@
+name: Idle CPU Benchmark
+
+on:
+  push:
+    branches:
+      - yo3gnd-hotpath-bench
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HC_TARGET: hamclock-web-1600x960
+  HC_BACKEND: ohb.hamclock.app:80
+  HC_SAMPLE_SECONDS: 90
+  HC_BASELINE_REF: 090955d8ade9ceb88cea58763cf3bb91b45d3bcf
+  HC_BRANCH_REF: 5305613184e4705fa5793f1bce518c4b29435617
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out benchmark harness
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          path: bench-harness
+
+      - name: Check out baseline
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.HC_BASELINE_REF }}
+          fetch-depth: 0
+          path: repo-baseline
+
+      - name: Check out branch under test
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.HC_BRANCH_REF }}
+          fetch-depth: 0
+          path: repo-branch
+
+      - name: Install benchmark dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sysstat
+
+      - name: Capture runner info
+        run: |
+          {
+            echo "uname:"
+            uname -a
+            echo
+            echo "lscpu:"
+            lscpu
+          } > "$RUNNER_TEMP/runner-info.txt"
+
+      - name: Run both benchmarks
+        run: |
+          set -euo pipefail
+
+          bench_one() {
+            local name="$1"
+            local ref="$2"
+            local repo_dir="$3"
+            local hc_home="$4"
+            local out_dir="$5"
+            local pid ready clk_tck cpu_model cpu_mhz utime0 stime0 utime1 stime1
+            local cpu_ticks cpu_seconds avg_cpu ps_cpu ps_mem rss_kb
+
+            bench_one_cleanup() {
+              local _pid="${pid:-}"
+              if [ -n "$_pid" ]; then
+                kill "$_pid" 2>/dev/null || true
+                wait "$_pid" 2>/dev/null || true
+                pid=""
+                for _ in $(seq 1 20); do
+                  if ! curl -fsS http://127.0.0.1:8080/ >/dev/null 2>&1; then
+                    break
+                  fi
+                  sleep 1
+                done
+              fi
+            }
+            trap 'bench_one_cleanup; trap - RETURN' RETURN
+
+            rm -rf "$hc_home" "$out_dir"
+            mkdir -p "$hc_home/.hamclock" "$out_dir"
+            cp bench-harness/.github/benchmarks/eeprom-1600x960 "$hc_home/.hamclock/eeprom"
+
+            (
+              cd "$repo_dir/ESPHamClock"
+              make clean
+              make -j"$(nproc)" "$HC_TARGET"
+            )
+
+            (
+              cd "$repo_dir/ESPHamClock"
+              HOME="$hc_home" ./"$HC_TARGET" -k -o -b "$HC_BACKEND" >"$out_dir/hamclock.log" 2>&1 &
+              echo $! > "$out_dir/pid"
+            )
+            pid=$(cat "$out_dir/pid")
+
+            ready=0
+            for _ in $(seq 1 60); do
+              if curl -fsS http://127.0.0.1:8080/ >"$out_dir/status.txt"; then
+                ready=1
+                break
+              fi
+              sleep 1
+            done
+            if [ "$ready" -ne 1 ]; then
+              echo "HamClock never reached ready state on port 8080 for $name" >&2
+              kill "$pid" 2>/dev/null || true
+              wait "$pid" 2>/dev/null || true
+              return 1
+            fi
+
+            sleep 20
+
+            clk_tck=$(getconf CLK_TCK)
+            cpu_model=$(awk -F: '/model name/ {sub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo)
+            cpu_mhz=$(awk -F: '/cpu MHz/ {sub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo)
+            read utime0 stime0 < <(awk '{print $14, $15}' "/proc/$pid/stat")
+            pidstat -u -p "$pid" 1 "$HC_SAMPLE_SECONDS" | tee "$out_dir/pidstat.log"
+            read utime1 stime1 < <(awk '{print $14, $15}' "/proc/$pid/stat")
+
+            cpu_ticks=$((utime1 + stime1 - utime0 - stime0))
+            cpu_seconds=$(awk -v ticks="$cpu_ticks" -v hz="$clk_tck" 'BEGIN {printf "%.2f", ticks / hz}')
+            avg_cpu=$(awk '/Average:/ && $3 ~ /^[0-9]+$/ {print $8}' "$out_dir/pidstat.log" | tail -1)
+            read ps_cpu ps_mem rss_kb < <(ps aux | awk -v want="$pid" '$2 == want {print $3, $4, $6; exit}')
+            if [ -z "${rss_kb:-}" ]; then
+              rss_kb=$(ps -p "$pid" -o rss= | tr -d ' ')
+            fi
+
+            ps aux | awk -v want="$pid" 'NR == 1 || $2 == want' >"$out_dir/process.txt"
+            cp "$hc_home/.hamclock/diagnostic-log.txt" "$out_dir/diagnostic-log.txt" 2>/dev/null || true
+
+            {
+              printf 'NAME=%q\n' "$name"
+              printf 'REF=%q\n' "$ref"
+              printf 'CPU_MODEL=%q\n' "$cpu_model"
+              printf 'CPU_MHZ=%q\n' "$cpu_mhz"
+              printf 'PS_CPU=%q\n' "${ps_cpu:-}"
+              printf 'PS_MEM=%q\n' "${ps_mem:-}"
+              printf 'PIDSTAT_CPU=%q\n' "${avg_cpu:-}"
+              printf 'CPU_SECONDS=%q\n' "$cpu_seconds"
+              printf 'RSS_KB=%q\n' "$rss_kb"
+            } >"$out_dir/metrics.sh"
+          }
+
+          rc=0
+          bench_one baseline "$HC_BASELINE_REF" repo-baseline "$RUNNER_TEMP/home-baseline" "$RUNNER_TEMP/out-baseline" || rc=1
+          bench_one branch "$HC_BRANCH_REF" repo-branch "$RUNNER_TEMP/home-branch" "$RUNNER_TEMP/out-branch" || rc=1
+          exit "$rc"
+
+      - name: Write comparison summary
+        if: always()
+        run: |
+          set -euo pipefail
+
+          if [ -f "$RUNNER_TEMP/out-baseline/metrics.sh" ]; then
+            . "$RUNNER_TEMP/out-baseline/metrics.sh"
+            B_REF="$REF"
+            B_CPU_MODEL="$CPU_MODEL"
+            B_CPU_MHZ="$CPU_MHZ"
+            B_PS_CPU="$PS_CPU"
+            B_PS_MEM="$PS_MEM"
+            B_PIDSTAT_CPU="$PIDSTAT_CPU"
+            B_CPU_SECONDS="$CPU_SECONDS"
+            B_RSS_KB="$RSS_KB"
+          fi
+
+          if [ -f "$RUNNER_TEMP/out-branch/metrics.sh" ]; then
+            . "$RUNNER_TEMP/out-branch/metrics.sh"
+            T_REF="$REF"
+            T_CPU_MODEL="$CPU_MODEL"
+            T_CPU_MHZ="$CPU_MHZ"
+            T_PS_CPU="$PS_CPU"
+            T_PS_MEM="$PS_MEM"
+            T_PIDSTAT_CPU="$PIDSTAT_CPU"
+            T_CPU_SECONDS="$CPU_SECONDS"
+            T_RSS_KB="$RSS_KB"
+          fi
+
+          {
+            echo "## Comparison"
+            echo
+            echo "- Target: \`${HC_TARGET}\`"
+            echo "- Duration: \`${HC_SAMPLE_SECONDS} s\`"
+            echo "- Runner CPU: \`${B_CPU_MODEL:-${T_CPU_MODEL:-n/a}}\` @ \`${B_CPU_MHZ:-${T_CPU_MHZ:-n/a}} MHz\`"
+            echo
+            echo "| Ref | ps CPU % | ps MEM % | pidstat CPU % | /proc CPU seconds | RSS KB |"
+            echo "| --- | ---: | ---: | ---: | ---: | ---: |"
+            echo "| baseline | ${B_PS_CPU:-n/a} | ${B_PS_MEM:-n/a} | ${B_PIDSTAT_CPU:-n/a} | ${B_CPU_SECONDS:-n/a} | ${B_RSS_KB:-n/a} |"
+            echo "| branch | ${T_PS_CPU:-n/a} | ${T_PS_MEM:-n/a} | ${T_PIDSTAT_CPU:-n/a} | ${T_CPU_SECONDS:-n/a} | ${T_RSS_KB:-n/a} |"
+            echo
+            echo "### Baseline"
+            echo "- Ref: \`${B_REF:-n/a}\`"
+            echo "- ps CPU: \`${B_PS_CPU:-n/a}%\`"
+            echo "- ps MEM: \`${B_PS_MEM:-n/a}%\`"
+            echo "- pidstat average CPU: \`${B_PIDSTAT_CPU:-n/a}%\`"
+            echo "- /proc CPU time: \`${B_CPU_SECONDS:-n/a} s\`"
+            echo "- RSS: \`${B_RSS_KB:-n/a} KB\`"
+            echo
+            echo "### Branch Under Test"
+            echo "- Ref: \`${T_REF:-n/a}\`"
+            echo "- ps CPU: \`${T_PS_CPU:-n/a}%\`"
+            echo "- ps MEM: \`${T_PS_MEM:-n/a}%\`"
+            echo "- pidstat average CPU: \`${T_PIDSTAT_CPU:-n/a}%\`"
+            echo "- /proc CPU time: \`${T_CPU_SECONDS:-n/a} s\`"
+            echo "- RSS: \`${T_RSS_KB:-n/a} KB\`"
+            echo
+
+            if [ -n "${B_PS_CPU:-}" ] && [ -n "${T_PS_CPU:-}" ]; then
+              PS_CPU_DELTA=$(awk -v base="$B_PS_CPU" -v branch="$T_PS_CPU" 'BEGIN {printf "%.2f", branch - base}')
+              PS_CPU_REDUCTION=$(awk -v base="$B_PS_CPU" -v branch="$T_PS_CPU" 'BEGIN {if (base == 0) print "n/a"; else printf "%.2f", (base-branch)*100/base}')
+              echo "- ps CPU delta: \`${PS_CPU_DELTA}%\`"
+              echo "- ps CPU reduction: \`${PS_CPU_REDUCTION}%\`"
+            fi
+
+            if [ -n "${B_PIDSTAT_CPU:-}" ] && [ -n "${T_PIDSTAT_CPU:-}" ]; then
+              PIDSTAT_CPU_DELTA=$(awk -v base="$B_PIDSTAT_CPU" -v branch="$T_PIDSTAT_CPU" 'BEGIN {printf "%.2f", branch - base}')
+              PIDSTAT_CPU_REDUCTION=$(awk -v base="$B_PIDSTAT_CPU" -v branch="$T_PIDSTAT_CPU" 'BEGIN {if (base == 0) print "n/a"; else printf "%.2f", (base-branch)*100/base}')
+              echo "- pidstat CPU delta: \`${PIDSTAT_CPU_DELTA}%\`"
+              echo "- pidstat CPU reduction: \`${PIDSTAT_CPU_REDUCTION}%\`"
+            fi
+
+            if [ -z "${B_PS_CPU:-}" ] || [ -z "${T_PS_CPU:-}" ]; then
+              echo "- Comparison incomplete: one side did not produce usable measurements."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload baseline artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: warn
+          name: idle-cpu-baseline
+          path: |
+            ${{ runner.temp }}/out-baseline/hamclock.log
+            ${{ runner.temp }}/out-baseline/pidstat.log
+            ${{ runner.temp }}/out-baseline/diagnostic-log.txt
+            ${{ runner.temp }}/out-baseline/process.txt
+            ${{ runner.temp }}/out-baseline/status.txt
+            ${{ runner.temp }}/out-baseline/metrics.sh
+            ${{ runner.temp }}/runner-info.txt
+
+      - name: Upload branch artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: warn
+          name: idle-cpu-branch
+          path: |
+            ${{ runner.temp }}/out-branch/hamclock.log
+            ${{ runner.temp }}/out-branch/pidstat.log
+            ${{ runner.temp }}/out-branch/diagnostic-log.txt
+            ${{ runner.temp }}/out-branch/process.txt
+            ${{ runner.temp }}/out-branch/status.txt
+            ${{ runner.temp }}/out-branch/metrics.sh
+            ${{ runner.temp }}/runner-info.txt
